@@ -1,0 +1,5 @@
+# Daily target problems
+DAILY_GOAL=3
+
+# CSV data file path
+DATA_PATH=progress.csv
