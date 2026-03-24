@@ -5,6 +5,7 @@
 #include <string>
 #include <algorithm>
 #include <ctime>
+
 using namespace std;
 
 struct Entry {
@@ -14,318 +15,206 @@ struct Entry {
     int hard = 0;
 };
 
-bool safeIntInput(int &x) {
+bool safeInt(int &x) {
     cin >> x;
     if (cin.fail() || x < 0) {
         cin.clear();
-        cin.ignore(10000, '\n');
-        cout << "Invalid input.\n";
+        cin.ignore(10000,'\n');
+        cout << "Invalid.\n";
         return false;
     }
     return true;
 }
 
-bool isValidDate(const string &s) {
+bool validDate(const string &s) {
     if (s.size() != 10 || s[4] != '-' || s[7] != '-') return false;
+
     int y, m, d;
-    if (sscanf(s.c_str(), "%d-%d-%d", &y, &m, &d) != 3) return false;
+    sscanf(s.c_str(), "%d-%d-%d", &y, &m, &d);
 
     tm t = {};
     t.tm_year = y - 1900;
-    t.tm_mon = m - 1;
+    t.tm_mon  = m - 1;
     t.tm_mday = d;
 
     time_t tt = mktime(&t);
     if (tt == -1) return false;
 
     tm *chk = localtime(&tt);
-    return chk->tm_year == t.tm_year &&
-           chk->tm_mon == t.tm_mon &&
-           chk->tm_mday == t.tm_mday;
+    return chk->tm_year == t.tm_year
+        && chk->tm_mon  == t.tm_mon
+        && chk->tm_mday == t.tm_mday;
 }
 
-tm parseDate(const string &s) {
-    tm t = {};
-    sscanf(s.c_str(), "%d-%d-%d", &t.tm_year, &t.tm_mon, &t.tm_mday);
-    t.tm_year -= 1900;
-    t.tm_mon -= 1;
-    return t;
-}
-
-int daysBetween(const tm &a, const tm &b) {
-    time_t ta = mktime(const_cast<tm*>(&a));
-    time_t tb = mktime(const_cast<tm*>(&b));
-    return int(difftime(tb, ta) / (60 * 60 * 24));
-}
-
-vector<Entry> loadData(const string &path) {
+vector<Entry> load(const string &path) {
     vector<Entry> v;
-    ifstream in(path);
+    ifstream f(path);
     string line;
-    getline(in, line);
+    getline(f, line); 
 
-    while (getline(in, line)) {
+    while (getline(f, line)) {
         stringstream ss(line);
         Entry e;
-        string sEasy, sMedium, sHard;
+        string a, b, c;
 
         if (!getline(ss, e.date, ',')) continue;
-        if (!getline(ss, sEasy, ',')) continue;
-        if (!getline(ss, sMedium, ',')) continue;
-        if (!getline(ss, sHard)) continue;
+        if (!getline(ss, a, ','))      continue;
+        if (!getline(ss, b, ','))      continue;
+        if (!getline(ss, c))           continue;
 
         try {
-            e.easy = stoi(sEasy);
-            e.medium = stoi(sMedium);
-            e.hard = stoi(sHard);
-        } catch (...) {
-            continue;
-        }
+            e.easy   = stoi(a);
+            e.medium = stoi(b);
+            e.hard   = stoi(c);
+        } catch (...) { continue; }
 
         v.push_back(e);
     }
     return v;
 }
 
-void saveEntry(const string &path, const Entry &e) {
-    ofstream out(path, ios::app);
-    out << e.date << "," << e.easy << "," << e.medium << "," << e.hard << "\n";
+void append(const string &path, const Entry &e) {
+    ofstream f(path, ios::app);
+    f << e.date << "," << e.easy << "," << e.medium << "," << e.hard << "\n";
 }
 
-void rewriteFile(const string &path, const vector<Entry> &data) {
-    ofstream out(path);
-    out << "date,easy,medium,hard\n";
-    for (const auto &e : data)
-        out << e.date << "," << e.easy << "," << e.medium << "," << e.hard << "\n";
+void rewrite(const string &path, const vector<Entry> &data) {
+    ofstream f(path);
+    f << "date,easy,medium,hard\n";
+    for (auto &e : data)
+        f << e.date << "," << e.easy << "," << e.medium << "," << e.hard << "\n";
 }
 
-void addOrEditProgress(const string &path) {
-    auto data = loadData(path);
+void addOrEdit(const string &path) {
+    auto data = load(path);
     string date;
 
     cout << "Date (YYYY-MM-DD): ";
     cin >> date;
 
-    if (!isValidDate(date)) {
-        cout << "Invalid date.\n";
+    if (!validDate(date)) { cout << "Bad date.\n"; return; }
+
+    for (auto &e : data) {
+        if (e.date != date) continue;
+
+        cout << "Already logged:" << e.easy
+             << " M:" << e.medium << " H:" << e.hard << "\n";
+        cout << "Edit? (y/n): ";
+        char ch; cin >> ch;
+        if (ch != 'y') return;
+
+        cout << "Easy: ";   if (!safeInt(e.easy))   return;
+        cout << "Medium: "; if (!safeInt(e.medium)) return;
+        cout << "Hard: ";   if (!safeInt(e.hard))   return;
+
+        rewrite(path, data);
+        cout << "Updated.\n";
         return;
     }
 
-    for (auto &e : data) {
-        if (e.date == date) {
-            cout << "Entry exists — E:" << e.easy << " M:" << e.medium << " H:" << e.hard << "\n";
-            cout << "Edit? (y/n): ";
-            char choice;
-            cin >> choice;
-            if (choice != 'y') return;
-
-            cout << "New Easy: ";   if (!safeIntInput(e.easy)) return;
-            cout << "New Medium: "; if (!safeIntInput(e.medium)) return;
-            cout << "New Hard: ";   if (!safeIntInput(e.hard)) return;
-
-            rewriteFile(path, data);
-            cout << "Entry updated.\n";
-            return;
-        }
-    }
-
+    // new entry
     Entry e;
     e.date = date;
-    cout << "Easy: ";   if (!safeIntInput(e.easy)) return;
-    cout << "Medium: "; if (!safeIntInput(e.medium)) return;
-    cout << "Hard: ";   if (!safeIntInput(e.hard)) return;
+    cout << "Easy: ";   if (!safeInt(e.easy))   return;
+    cout << "Medium: "; if (!safeInt(e.medium)) return;
+    cout << "Hard: ";   if (!safeInt(e.hard))   return;
 
-    saveEntry(path, e);
-    cout << "Progress saved.\n";
+    append(path, e);
+    cout << "Saved.\n";
 }
 
 void deleteEntry(const string &path) {
-    auto data = loadData(path);
+    auto data = load(path);
     string date;
-    cout << "Enter date to delete (YYYY-MM-DD): ";
+    cout << "Date to delete: ";
     cin >> date;
 
     auto it = remove_if(data.begin(), data.end(),
-        [&date](const Entry &e) { return e.date == date; });
+        [&](const Entry &e) { return e.date == date; });
 
-    if (it == data.end()) {
-        cout << "Entry not found.\n";
-        return;
-    }
+    if (it == data.end()) { cout << "Not found.\n"; return; }
 
     data.erase(it, data.end());
-    rewriteFile(path, data);
-    cout << "Entry deleted.\n";
+    rewrite(path, data);
+    cout << "Deleted.\n";
 }
 
-pair<int,int> getStreaks(vector<Entry> v) {
-    if (v.empty()) return {0, 0};
+void history(vector<Entry> v) {
+    if (v.empty()) { cout << "Nothing yet.\n"; return; }
 
     sort(v.begin(), v.end(),
-         [](const Entry &a, const Entry &b) { return a.date < b.date; });
+        [](const Entry &a, const Entry &b) { return a.date < b.date; });
 
-    int streak = 1;
-    for (int i = (int)v.size() - 1; i > 0; i--) {
-        tm d1 = parseDate(v[i-1].date);
-        tm d2 = parseDate(v[i].date);
-        if (daysBetween(d1, d2) == 1)
-            streak++;
-        else
-            break;
-    }
+    cout << "Last how many days? (0 = all): ";
+    int n; if (!safeInt(n)) return;
 
-    int best = 1, current = 1;
-    for (int i = 1; i < (int)v.size(); i++) {
-        tm d1 = parseDate(v[i-1].date);
-        tm d2 = parseDate(v[i].date);
-        if (daysBetween(d1, d2) == 1)
-            current++;
-        else
-            current = 1;
-        best = max(best, current);
-    }
+    if (n > 0 && v.size() > size_t(n))
+        v.erase(v.begin(), v.end() - n);
 
-    return {streak, best};
-}
-
-int missedDays(vector<Entry> v) {
-    if (v.size() < 2) return 0;
-
-    sort(v.begin(), v.end(),
-         [](const Entry &a, const Entry &b) { return a.date < b.date; });
-
-    int missed = 0;
-    for (int i = 1; i < (int)v.size(); i++) {
-        tm d1 = parseDate(v[i-1].date);
-        tm d2 = parseDate(v[i].date);
-        int gap = daysBetween(d1, d2);
-        if (gap > 1) missed += gap - 1;
-    }
-    return missed;
-}
-
-void viewHistory(vector<Entry> v) {
-    if (v.empty()) { cout << "No history.\n"; return; }
-
-    sort(v.begin(), v.end(),
-         [](const Entry &a, const Entry &b) { return a.date < b.date; });
-
-    cout << "Show last how many days? (0 = all): ";
-    int days;
-    if (!safeIntInput(days)) return;
-
-    if (days > 0 && v.size() > size_t(days))
-        v.erase(v.begin(), v.end() - days);
-
-    cout << "\nHISTORY\n";
-    for (auto &e : v) {
-        int total = e.easy + e.medium + e.hard;
+    cout << "\n";
+    for (auto &e : v)
         cout << e.date
-             << " | E:" << e.easy
-             << " M:" << e.medium
-             << " H:" << e.hard
-             << " | Total:" << total << "\n";
-    }
+             << "\tE:" << e.easy
+             << "\tM:"  << e.medium
+             << "\tH:"  << e.hard
+             << "\tTotal:" << e.easy + e.medium + e.hard << "\n";
 }
 
-void showSummary(vector<Entry> v, int dailyGoal) {
+void summary(vector<Entry> v, int goal) {
     int e = 0, m = 0, h = 0;
-    for (auto &x : v) {
-        e += x.easy;
-        m += x.medium;
-        h += x.hard;
-    }
-
+    for (auto &x : v) { e += x.easy; m += x.medium; h += x.hard; }
     int total = e + m + h;
 
-    int todaySolved = 0;
+    int today = 0;
     if (!v.empty()) {
-        auto latest = max_element(v.begin(), v.end(),
+        auto it = max_element(v.begin(), v.end(),
             [](const Entry &a, const Entry &b) { return a.date < b.date; });
-        todaySolved = latest->easy + latest->medium + latest->hard;
+        today = it->easy + it->medium + it->hard;
     }
 
-    pair<int,int> streaks = getStreaks(v);
-    int curStreak = streaks.first;
-    int topStreak = streaks.second;
+    cout << "\ndays:   " << v.size()  << "\n";
+    cout << "total:  " << total << "  (E:" << e << " M:" << m << " H:" << h << ")\n";
 
-    cout << "\n--- SUMMARY ---\n";
-    cout << "Days logged:    " << v.size() << "\n";
-    cout << "Total solved:   " << total << "\n";
-    cout << "Easy:           " << e << "\n";
-    cout << "Medium:         " << m << "\n";
-    cout << "Hard:           " << h << "\n";
+    if (total > 0)
+        cout << "mix:\nE " << e*100/total << "%"
+             << "  M " << m*100/total << "%"
+             << "  H " << h*100/total << "%\n";
 
-    if (total > 0) {
-        cout << "Difficulty mix: "
-             << "E " << (e * 100 / total) << "% "
-             << "M " << (m * 100 / total) << "% "
-             << "H " << (h * 100 / total) << "%\n";
-    }
-
-    cout << "Current streak: " << curStreak << " days\n";
-    cout << "Best streak:    " << topStreak << " days\n";
-    cout << "Missed days:    " << missedDays(v) << "\n";
-    cout << "Today's goal:   " << todaySolved << "/" << dailyGoal << "\n";
-}
-
-void ensureConfig(int &goal, string &path) {
-    ifstream in("config.txt");
-    if (in.good()) {
-        string line;
-        while (getline(in, line)) {
-            if (line.find("DAILY_GOAL=") == 0)
-                goal = stoi(line.substr(11));
-            else if (line.find("DATA_PATH=") == 0)
-                path = line.substr(10);
-        }
-        return;
-    }
-
-    ofstream out("config.txt");
-    out << "# Daily target problems\nDAILY_GOAL=3\n\n";
-    out << "# CSV data file path\nDATA_PATH=progress.csv\n";
+    cout << "today:" << today << "/" << goal << "\n";
 }
 
 int main() {
-    int dailyGoal = 3;
-    string dataPath = "progress.csv";
+    const string CSV = "progress.csv";
+    int goal = 3;
 
-    ensureConfig(dailyGoal, dataPath);
-
-    ifstream chk(dataPath);
+    ifstream chk(CSV);
     if (!chk.good()) {
-        ofstream out(dataPath);
-        out << "date,easy,medium,hard\n";
+        ofstream f(CSV);
+        f << "date,easy,medium,hard\n";
     }
 
     while (true) {
-        cout << "DSA Progress Tracker\n";
-        cout << "1. Add / Edit progress\n";
-        cout << "2. View history\n";
-        cout << "3. View summary\n";
-        cout << "4. Delete entry\n";
-        cout << "5. Exit\n";
-        cout << "Choice: ";
+        cout << "\nDSA Tracker\n"
+             << "1. Add/Edit\n"
+             << "2. History\n"
+             << "3. Summary\n"
+             << "4. Delete\n"
+             << "5. Quit\n"
+             << "> ";
 
         int c;
         if (!(cin >> c)) {
             cin.clear();
             cin.ignore(10000, '\n');
-            cout << "Invalid input.\n";
             continue;
         }
 
-        auto data = loadData(dataPath);
+        auto data = load(CSV);
 
-        if      (c == 1) addOrEditProgress(dataPath);
-        else if (c == 2) viewHistory(data);
-        else if (c == 3) showSummary(data, dailyGoal);
-        else if (c == 4) deleteEntry(dataPath);
+        if      (c == 1) addOrEdit(CSV);
+        else if (c == 2) history(data);
+        else if (c == 3) summary(data, goal);
+        else if (c == 4) deleteEntry(CSV);
         else if (c == 5) break;
-        else cout << "Invalid choice.\n";
     }
-
-    cout << "Goodbye!\n";
-    return 0;
 }
